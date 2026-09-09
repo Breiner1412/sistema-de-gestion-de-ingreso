@@ -1,0 +1,16 @@
+# Firebase
+.firebase/
+firebase-debug.log
+firestore-debug.log
+ui-debug.log
+
+# Config real (nunca subir)
+js/firebase-config.real.js
+
+# Sistema
+.DS_Store
+Thumbs.db
+node_modules/
+*.log
+# Respaldo creado durante la revisión
+_respaldo_antes_revision/

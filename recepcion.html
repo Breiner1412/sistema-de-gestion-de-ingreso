@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Recepción - Registro de Entrada</title>
+    <link rel="stylesheet" href="css/styles.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.min.css">
+</head>
+
+<body>
+    <nav class="navbar">
+        <div class="navbar-brand">
+            <i class="fas fa-school"></i>
+            <span>Recepción</span>
+        </div>
+        <div class="navbar-center">
+            <div class="en-sitio-counter">
+                <i class="fas fa-users"></i>
+                <span id="enSitioCount">0</span> personas en sitio
+            </div>
+        </div>
+        <div class="navbar-user">
+            <button class="btn btn-sm" onclick="toggleDarkMode()" title="Modo oscuro/claro">
+                <i class="fas fa-moon" id="darkModeIcon"></i>
+            </button>
+            <span id="userEmail"></span>
+            <button class="btn btn-sm btn-outline" onclick="cerrarSesion()">
+                <i class="fas fa-sign-out-alt"></i> Salir
+            </button>
+        </div>
+    </nav>
+
+    <main class="main-content">
+        <!-- ESCÁNER PRINCIPAL -->
+        <div class="register-card scanner-card">
+            <div class="card-header">
+                <h2><i class="fas fa-qrcode"></i> Escanear Cédula o Carnet</h2>
+                <div class="current-time" id="currentTime"></div>
+            </div>
+
+            <div class="scanner-section">
+                <div class="form-group scanner-input-group">
+                    <label for="cedulaScanner"><i class="fas fa-id-card"></i> Número de Cédula / Carnet</label>
+                    <div class="scanner-wrapper">
+                        <input type="text" id="cedulaScanner" placeholder="Escanee o digite la cédula..."
+                            inputmode="numeric" maxlength="15" autocomplete="off" autofocus>
+                        <div class="scanner-icon-pulse">
+                            <i class="fas fa-barcode"></i>
+                        </div>
+                    </div>
+                    <small class="form-hint">Al escanear: si ya existe, registra entrada/salida automáticamente</small>
+                </div>
+            </div>
+
+            <!-- Estado del escaneo -->
+            <div id="scanResult" class="scan-result" style="display:none;">
+                <div class="scan-result-icon" id="scanResultIcon"></div>
+                <div class="scan-result-info" id="scanResultInfo"></div>
+            </div>
+        </div>
+
+        <!-- FORMULARIO NUEVO REGISTRO (oculto) -->
+        <div class="register-card" id="nuevoRegistroCard" style="display:none;">
+            <div class="card-header">
+                <h2><i class="fas fa-user-plus"></i> Nueva Persona - Registrar</h2>
+                <button class="btn btn-sm btn-secondary" onclick="cancelarRegistro()">
+                    <i class="fas fa-times"></i> Cancelar
+                </button>
+            </div>
+
+            <form id="registroForm">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="cedula"><i class="fas fa-id-card"></i> Cédula</label>
+                        <input type="text" id="cedula" readonly class="input-readonly">
+                    </div>
+                    <div class="form-group">
+                        <label for="nombre"><i class="fas fa-user"></i> Nombre Completo</label>
+                        <input type="text" id="nombre" placeholder="Nombre y Apellido" required autocomplete="off">
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label><i class="fas fa-users"></i> Tipo de Persona</label>
+                    <div class="tipo-selector">
+                        <label class="tipo-option">
+                            <input type="radio" name="tipo" value="empleado" required>
+                            <div class="tipo-card">
+                                <i class="fas fa-briefcase"></i>
+                                <span>Empleado</span>
+                            </div>
+                        </label>
+                        <label class="tipo-option">
+                            <input type="radio" name="tipo" value="estudiante">
+                            <div class="tipo-card">
+                                <i class="fas fa-graduation-cap"></i>
+                                <span>Estudiante</span>
+                            </div>
+                        </label>
+                        <label class="tipo-option">
+                            <input type="radio" name="tipo" value="visitante">
+                            <div class="tipo-card">
+                                <i class="fas fa-walking"></i>
+                                <span>Visitante</span>
+                            </div>
+                        </label>
+                    </div>
+                </div>
+
+                <div class="form-group" id="motivoGroup" style="display:none;">
+                    <label for="motivo"><i class="fas fa-comment-alt"></i> Motivo de la Visita</label>
+                    <textarea id="motivo" rows="3" placeholder="Describa brevemente el motivo..."></textarea>
+                </div>
+
+                <div class="form-actions">
+                    <button type="submit" class="btn btn-primary btn-lg" id="btnRegistrar">
+                        <i class="fas fa-check-circle"></i> Registrar y Marcar Entrada
+                    </button>
+                </div>
+            </form>
+        </div>
+
+        <!-- ÚLTIMOS REGISTROS DE HOY -->
+        <div class="recent-card">
+            <div class="card-header">
+                <h2><i class="fas fa-history"></i> Registros de Hoy</h2>
+                <span class="record-count" id="todayCount">(0)</span>
+            </div>
+            <div class="table-wrapper">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Hora Entrada</th>
+                            <th>Hora Salida</th>
+                            <th>Cédula</th>
+                            <th>Nombre</th>
+                            <th>Tipo</th>
+                            <th>Estado</th>
+                        </tr>
+                    </thead>
+                    <tbody id="recentTable">
+                        <tr>
+                            <td colspan="6" class="empty-state">
+                                <i class="fas fa-inbox"></i> Sin registros aún
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </main>
+
+    <!-- Sonidos: archivos propios dentro del proyecto.
+         Antes venían de un CDN externo y la portería se quedaba
+         muda cuando fallaba el internet. -->
+    <audio id="soundEntrada" preload="auto" src="sonidos/entrada.wav"></audio>
+    <audio id="soundSalida" preload="auto" src="sonidos/salida.wav"></audio>
+    <audio id="soundError" preload="auto" src="sonidos/error.wav"></audio>
+
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+    <script src="js/firebase-config.js"></script>
+    <script src="js/utils.js"></script>
+    <script src="js/auth.js"></script>
+    <script src="js/recepcion.js"></script>
+</body>
+
+</html>

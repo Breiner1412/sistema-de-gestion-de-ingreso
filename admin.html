@@ -1,0 +1,359 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Administración - Registro de Entrada</title>
+    <link rel="stylesheet" href="css/styles.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.min.css">
+    <!-- Chart.js para gráficas -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+</head>
+
+<body>
+    <nav class="navbar navbar-admin">
+        <div class="navbar-brand">
+            <i class="fas fa-school"></i>
+            <span>Panel Administrativo</span>
+        </div>
+        <div class="navbar-center">
+            <div class="en-sitio-counter">
+                <i class="fas fa-users"></i>
+                <span id="enSitioCount">0</span> personas en sitio
+            </div>
+        </div>
+        <div class="navbar-user">
+            <button class="btn btn-sm" onclick="toggleDarkMode()" title="Modo oscuro/claro">
+                <i class="fas fa-moon" id="darkModeIcon"></i>
+            </button>
+            <span id="userEmail"></span>
+            <button class="btn btn-sm btn-outline" onclick="cerrarSesion()">
+                <i class="fas fa-sign-out-alt"></i> Salir
+            </button>
+        </div>
+    </nav>
+
+    <main class="main-content">
+        <!-- Stats -->
+        <div class="stats-grid">
+            <div class="stat-card stat-total">
+                <div class="stat-icon"><i class="fas fa-users"></i></div>
+                <div class="stat-info">
+                    <h3 id="statTotal">0</h3>
+                    <p>Total Hoy</p>
+                </div>
+            </div>
+            <div class="stat-card stat-empleados">
+                <div class="stat-icon"><i class="fas fa-briefcase"></i></div>
+                <div class="stat-info">
+                    <h3 id="statEmpleados">0</h3>
+                    <p>Empleados</p>
+                </div>
+            </div>
+            <div class="stat-card stat-estudiantes">
+                <div class="stat-icon"><i class="fas fa-graduation-cap"></i></div>
+                <div class="stat-info">
+                    <h3 id="statEstudiantes">0</h3>
+                    <p>Estudiantes</p>
+                </div>
+            </div>
+            <div class="stat-card stat-visitantes">
+                <div class="stat-icon"><i class="fas fa-walking"></i></div>
+                <div class="stat-info">
+                    <h3 id="statVisitantes">0</h3>
+                    <p>Visitantes</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Gráficas -->
+        <div class="charts-grid">
+            <div class="chart-card">
+                <div class="card-header">
+                    <h2><i class="fas fa-chart-bar"></i> Entradas por Día (Última Semana)</h2>
+                </div>
+                <canvas id="chartSemanal" height="200"></canvas>
+            </div>
+            <div class="chart-card">
+                <div class="card-header">
+                    <h2><i class="fas fa-chart-pie"></i> Distribución por Tipo</h2>
+                </div>
+                <canvas id="chartTipos" height="200"></canvas>
+            </div>
+        </div>
+
+        <!-- Personas en Sitio -->
+        <div class="records-card alert-card">
+            <div class="card-header">
+                <h2><i class="fas fa-building"></i> Personas en Sitio Ahora
+                    <span class="record-count badge badge-activo" id="enSitioCountTable">0</span>
+                </h2>
+                <button class="btn btn-sm btn-warning" onclick="reporteEnSitio()">
+                    <i class="fas fa-file-pdf"></i> Reporte
+                </button>
+            </div>
+            <div class="table-wrapper" style="max-height:300px; overflow-y:auto;">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Hora Entrada</th>
+                            <th>Cédula</th>
+                            <th>Nombre</th>
+                            <th>Tipo</th>
+                            <th>Tiempo</th>
+                            <th>Acción</th>
+                        </tr>
+                    </thead>
+                    <tbody id="enSitioBody">
+                        <tr>
+                            <td colspan="6" class="empty-state"><i class="fas fa-check-circle"></i> Nadie en sitio</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Importar Excel -->
+        <div class="filters-card">
+            <div class="card-header">
+                <h2><i class="fas fa-file-excel"></i> Importar Personas desde Excel</h2>
+            </div>
+            <div class="import-section">
+                <div class="import-info">
+                    <p><i class="fas fa-info-circle"></i> El archivo debe tener las columnas: <strong>cedula</strong>,
+                        <strong>nombre</strong>, <strong>tipo</strong> (empleado, estudiante o visitante)</p>
+                    <p>Formatos aceptados: <strong>.xlsx</strong> y <strong>.csv</strong></p>
+                </div>
+                <div class="import-actions">
+                    <button class="btn btn-success" onclick="descargarPlantilla()">
+                        <i class="fas fa-download"></i> Descargar Plantilla
+                    </button>
+                    <label class="btn btn-primary" for="archivoExcel">
+                        <i class="fas fa-upload"></i> Seleccionar Archivo
+                    </label>
+                    <input type="file" id="archivoExcel" accept=".xlsx,.csv" style="display:none;"
+                        onchange="previsualizarArchivo(event)">
+                </div>
+            </div>
+            <div id="importPreview" style="display:none;">
+                <div class="card-header" style="margin-top:16px;">
+                    <h2><i class="fas fa-eye"></i> Vista Previa <span class="record-count" id="previewCount"></span>
+                    </h2>
+                    <div>
+                        <button class="btn btn-sm btn-secondary" onclick="cancelarImportacion()"><i
+                                class="fas fa-times"></i> Cancelar</button>
+                        <button class="btn btn-sm btn-primary" onclick="ejecutarImportacion()" id="btnImportar"><i
+                                class="fas fa-upload"></i> Importar Todo</button>
+                    </div>
+                </div>
+                <div class="import-stats" id="importStats"></div>
+                <div class="table-wrapper" style="max-height:300px; overflow-y:auto;">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Estado</th>
+                                <th>Cédula</th>
+                                <th>Nombre</th>
+                                <th>Tipo</th>
+                            </tr>
+                        </thead>
+                        <tbody id="previewBody"></tbody>
+                    </table>
+                </div>
+            </div>
+            <div id="importProgress" style="display:none;">
+                <div class="progress-bar-container">
+                    <div class="progress-bar" id="progressBar"></div>
+                </div>
+                <p class="progress-text" id="progressText">Importando...</p>
+            </div>
+        </div>
+
+        <!-- Filtros -->
+        <div class="filters-card">
+            <div class="card-header">
+                <h2><i class="fas fa-filter"></i> Filtros de Registros</h2>
+                <button class="btn btn-sm btn-secondary" onclick="limpiarFiltros()">
+                    <i class="fas fa-eraser"></i> Limpiar Filtros
+                </button>
+            </div>
+            <div class="filters-grid">
+                <div class="form-group">
+                    <label for="filtroPeriodo"><i class="fas fa-calendar"></i> Período</label>
+                    <select id="filtroPeriodo">
+                        <option value="hoy">Hoy</option>
+                        <option value="semana">Esta Semana</option>
+                        <option value="mes">Este Mes</option>
+                        <option value="personalizado">Personalizado</option>
+                    </select>
+                </div>
+                <div class="form-group" id="fechaPersonalizadaGroup" style="display:none;">
+                    <label for="fechaDesde"><i class="fas fa-calendar-alt"></i> Desde</label>
+                    <input type="date" id="fechaDesde">
+                </div>
+                <div class="form-group" id="fechaPersonalizadaGroup2" style="display:none;">
+                    <label for="fechaHasta"><i class="fas fa-calendar-alt"></i> Hasta</label>
+                    <input type="date" id="fechaHasta">
+                </div>
+                <div class="form-group">
+                    <label for="filtroTipo"><i class="fas fa-users"></i> Tipo</label>
+                    <select id="filtroTipo">
+                        <option value="todos">Todos</option>
+                        <option value="empleado">Empleados</option>
+                        <option value="estudiante">Estudiantes</option>
+                        <option value="visitante">Visitantes</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="buscarCedula"><i class="fas fa-search"></i> Buscar Cédula</label>
+                    <input type="text" id="buscarCedula" placeholder="Número de cédula..." inputmode="numeric">
+                </div>
+                <div class="form-group" style="align-self:flex-end;">
+                    <button class="btn btn-primary" onclick="aplicarFiltros()">
+                        <i class="fas fa-search"></i> Buscar
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tabla de registros -->
+        <div class="records-card">
+            <div class="card-header">
+                <h2><i class="fas fa-list-alt"></i> Registros <span class="record-count" id="recordCount">(0)</span>
+                </h2>
+                <button class="btn btn-success btn-sm" onclick="exportarCSV()">
+                    <i class="fas fa-file-csv"></i> Exportar CSV
+                </button>
+            </div>
+            <div class="table-wrapper">
+                <table class="data-table" id="registrosTable">
+                    <thead>
+                        <tr>
+                            <th>Fecha</th>
+                            <th>Entrada</th>
+                            <th>Salida</th>
+                            <th>Cédula</th>
+                            <th>Nombre</th>
+                            <th>Tipo</th>
+                            <th>Motivo</th>
+                            <th>Registrado por</th>
+                            <th>Historial</th>
+                        </tr>
+                    </thead>
+                    <tbody id="registrosBody">
+                        <tr>
+                            <td colspan="9" class="empty-state"><i class="fas fa-inbox"></i> Seleccione filtros y
+                                presione Buscar</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+            <div class="pagination" id="pagination"></div>
+        </div>
+
+        <!-- Personas Registradas -->
+        <div class="records-card">
+            <div class="card-header">
+                <h2><i class="fas fa-address-book"></i> Personas Registradas <span class="record-count"
+                        id="personasCount">(0)</span></h2>
+                <div>
+                    <button class="btn btn-sm btn-success" onclick="exportarPersonasCSV()"><i
+                            class="fas fa-file-csv"></i> Exportar</button>
+                    <button class="btn btn-sm btn-primary" onclick="cargarPersonas()"><i class="fas fa-sync"></i>
+                        Refrescar</button>
+                </div>
+            </div>
+            <div id="avisoLegado" class="alert-legado" style="display:none;"></div>
+            <div class="form-group" style="margin-bottom:12px;">
+                <div class="search-inline">
+                    <i class="fas fa-search"></i>
+                    <input type="text" id="buscarPersona" placeholder="Buscar por nombre o cédula..."
+                        oninput="filtrarPersonas()">
+                </div>
+            </div>
+            <div class="table-wrapper" style="max-height:400px; overflow-y:auto;">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Cédula</th>
+                            <th>Nombre</th>
+                            <th>Tipo</th>
+                            <th>Fecha Registro</th>
+                            <th>Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody id="personasBody">
+                        <tr>
+                            <td colspan="5" class="empty-state"><i class="fas fa-users"></i> Cargando...</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Gestión de Usuarios -->
+        <div class="records-card">
+            <div class="card-header">
+                <h2><i class="fas fa-user-shield"></i> Gestión de Usuarios del Sistema</h2>
+                <button class="btn btn-sm btn-primary" onclick="crearUsuario()">
+                    <i class="fas fa-user-plus"></i> Crear Usuario
+                </button>
+            </div>
+            <div class="table-wrapper">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Email</th>
+                            <th>Rol</th>
+                        </tr>
+                    </thead>
+                    <tbody id="usuariosBody">
+                        <tr>
+                            <td colspan="2" class="empty-state"><i class="fas fa-spinner fa-spin"></i> Cargando...</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Modal Historial -->
+        <div class="modal-overlay" id="historialModal" style="display:none;">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2><i class="fas fa-history"></i> Historial de Ingresos</h2>
+                    <button class="btn btn-sm btn-secondary" onclick="cerrarHistorial()"><i
+                            class="fas fa-times"></i></button>
+                </div>
+                <div class="modal-info" id="historialPersonaInfo"></div>
+                <div class="table-wrapper">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Fecha</th>
+                                <th>Entrada</th>
+                                <th>Salida</th>
+                                <th>Motivo</th>
+                            </tr>
+                        </thead>
+                        <tbody id="historialBody"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+    <script src="js/firebase-config.js"></script>
+    <script src="js/utils.js"></script>
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
+    <script src="js/auth.js"></script>
+    <script src="js/admin.js"></script>
+</body>
+
+</html>

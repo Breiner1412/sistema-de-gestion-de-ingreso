@@ -1,0 +1,196 @@
+rules_version = '2';
+
+// ============================================================
+//  REGLAS DE SEGURIDAD - SISTEMA DE REGISTRO DE INGRESO
+// ------------------------------------------------------------
+//  Principio de diseño: el rol NUNCA se decide en el navegador.
+//  El JavaScript de la app solo mejora la experiencia de uso
+//  (redirigir, ocultar botones); quien autoriza o bloquea de
+//  verdad es este archivo, que se evalúa en los servidores de
+//  Google antes de tocar un solo documento.
+//
+//  Desplegar con:
+//    firebase deploy --only firestore:rules
+//
+//  Probar sin afectar producción:
+//    firebase emulators:start --only firestore
+// ============================================================
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ----------------------------------------------------------
+    //  Helpers
+    // ----------------------------------------------------------
+    //  Nota de rendimiento: cada get() dentro de las reglas cuenta
+    //  como una lectura facturable. Para un volumen alto conviene
+    //  migrar el rol a custom claims del token (requiere el Admin
+    //  SDK en una Cloud Function), con lo cual la comprobación
+    //  pasa a ser gratuita y sin latencia.
+
+    function autenticado() {
+      return request.auth != null;
+    }
+
+    function tieneDocUsuario() {
+      return autenticado()
+        && exists(/databases/$(database)/documents/users/$(request.auth.uid));
+    }
+
+    function rolActual() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role;
+    }
+
+    function esAdmin() {
+      return tieneDocUsuario() && rolActual() == 'admin';
+    }
+
+    // Recepcionistas y admins pueden operar la portería
+    function esOperador() {
+      return tieneDocUsuario() && (rolActual() == 'recepcionista' || rolActual() == 'admin');
+    }
+
+    function esCedula(valor) {
+      return valor is string && valor.matches('^[0-9]{6,15}$');
+    }
+
+    function esTipoValido(valor) {
+      return valor in ['empleado', 'estudiante', 'visitante'];
+    }
+
+    function textoCorto(valor, maximo) {
+      return valor is string && valor.size() > 0 && valor.size() <= maximo;
+    }
+
+
+    // ==========================================================
+    //  users/{uid}  ->  quién entra al sistema y con qué rol
+    // ==========================================================
+    //  COLECCIÓN CRÍTICA. Si un recepcionista pudiera escribir
+    //  aquí, abriría la consola del navegador, se pondría
+    //  role:'admin' y tendría el panel completo. Por eso la
+    //  escritura está reservada al administrador y el propio
+    //  usuario nunca puede tocar su documento.
+    match /users/{uid} {
+
+      // Cada quien lee su propio documento: el login lo necesita
+      // para saber a qué página redirigir. El admin los ve todos.
+      allow read: if autenticado() && (request.auth.uid == uid || esAdmin());
+
+      allow create: if esAdmin()
+                    && request.resource.data.keys().hasOnly(['email', 'role'])
+                    && textoCorto(request.resource.data.email, 200)
+                    && request.resource.data.role in ['admin', 'recepcionista'];
+
+      // Un admin cambia el rol de otros, nunca el suyo propio:
+      // así nadie se degrada por accidente y deja el sistema sin
+      // ningún administrador.
+      allow update: if esAdmin()
+                    && request.auth.uid != uid
+                    && request.resource.data.keys().hasOnly(['email', 'role'])
+                    && textoCorto(request.resource.data.email, 200)
+                    && request.resource.data.role in ['admin', 'recepcionista'];
+
+      allow delete: if esAdmin() && request.auth.uid != uid;
+    }
+
+
+    // ==========================================================
+    //  personas/{cedula}  ->  catálogo de personas conocidas
+    // ==========================================================
+    //  El ID del documento ES la cédula. Eso hace imposible que
+    //  existan dos personas con el mismo número y convierte la
+    //  búsqueda del escáner en una sola lectura directa.
+    match /personas/{cedula} {
+
+      function personaValida() {
+        return request.resource.data.keys().hasOnly(
+                 ['cedula', 'nombre', 'tipo', 'creadoEn',
+                  'registroActivo', 'fechaActiva', 'actualizadoEn'])
+          // el campo y el ID del documento no pueden divergir
+          && request.resource.data.cedula == cedula
+          && esCedula(request.resource.data.cedula)
+          && textoCorto(request.resource.data.nombre, 120)
+          && esTipoValido(request.resource.data.tipo);
+      }
+
+      allow read:           if esOperador();
+      allow create, update: if esOperador() && personaValida();
+      allow delete:         if esAdmin();
+    }
+
+
+    // ==========================================================
+    //  registros/{id}  ->  entradas y salidas (histórico)
+    // ==========================================================
+    //  Este es el dato auditable del sistema: una vez creado, un
+    //  operador solo puede cerrarlo con la salida. No puede
+    //  cambiar la hora de entrada, ni el nombre, ni borrarlo.
+    match /registros/{registroId} {
+
+      function registroValido() {
+        return request.resource.data.keys().hasOnly(
+                 ['cedula', 'nombre', 'tipo', 'motivo', 'entrada',
+                  'salida', 'registradoPor', 'fecha', 'cierreAutomatico'])
+          && esCedula(request.resource.data.cedula)
+          && textoCorto(request.resource.data.nombre, 120)
+          && esTipoValido(request.resource.data.tipo)
+
+          // La hora la pone el servidor (serverTimestamp), no el
+          // reloj del computador de la portería: un equipo mal
+          // configurado no puede guardar horas falsas.
+          && request.resource.data.entrada == request.time
+          && request.resource.data.salida == null
+
+          // 'fecha' es la fecha LOCAL de Colombia y request.time
+          // está en UTC, así que no se pueden comparar: después de
+          // las 7:00 p.m. serían días distintos. Solo se valida el
+          // formato.
+          && request.resource.data.fecha is string
+          && request.resource.data.fecha.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
+
+          // Un visitante siempre trae motivo; los demás, nunca.
+          && motivoCoherente()
+
+          // El registro queda firmado con el correo real de quien
+          // lo hizo, tomado del token, no de lo que envíe la app.
+          && request.resource.data.registradoPor == request.auth.token.email;
+      }
+
+      function motivoCoherente() {
+        return request.resource.data.motivo is string
+          && (request.resource.data.tipo == 'visitante'
+                ? request.resource.data.motivo.size() > 0
+                  && request.resource.data.motivo.size() <= 500
+                : request.resource.data.motivo == '');
+      }
+
+      // Único cambio permitido a un operador: cerrar una entrada
+      // abierta. Y la salida nunca puede ser anterior a la entrada.
+      function soloRegistraSalida() {
+        return resource.data.salida == null
+          && request.resource.data.diff(resource.data)
+               .affectedKeys().hasOnly(['salida', 'cierreAutomatico'])
+          && request.resource.data.salida is timestamp
+          && request.resource.data.salida >= resource.data.entrada;
+      }
+
+      allow read:   if esOperador();
+      allow create: if esOperador() && registroValido();
+      allow update: if (esOperador() && soloRegistraSalida()) || esAdmin();
+      allow delete: if esAdmin();
+    }
+
+
+    // ==========================================================
+    //  Todo lo demás queda cerrado
+    // ==========================================================
+    //  Firestore ya deniega por defecto lo que no coincide con
+    //  ninguna regla; esto lo hace explícito para quien lea el
+    //  archivo y evita que una colección nueva quede abierta por
+    //  descuido.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
